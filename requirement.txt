@@ -1,7 +1,0 @@
-streamlit
-numpy
-pandas
-matplotlib==3.8.4
-scikit-learn
-tensorflow
-keras
