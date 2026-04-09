@@ -3,5 +3,4 @@ numpy
 pandas
 matplotlib==3.8.4
 scikit-learn
-tensorflow
-keras
+tensorflow==2.15.0
