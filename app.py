@@ -49,12 +49,35 @@ latest_price = st.number_input(
 # ===============================
 # NEXT DAY PREDICTION
 # ===============================
-# Small realistic change (-0.5% to +0.5%)
 change = random.uniform(-0.005, 0.005)
 next_day = latest_price * (1 + change)
 
 st.subheader("📅 Next Day Prediction")
 st.success(f"Predicted Price: {next_day:.2f}")
+
+# ===============================
+# PROFIT / LOSS
+# ===============================
+difference = next_day - latest_price
+
+if difference > 0:
+    st.success(f"📈 Profit: +{difference:.2f}")
+elif difference < 0:
+    st.error(f"📉 Loss: {difference:.2f}")
+else:
+    st.info("No change")
+
+# ===============================
+# BUY / SELL SIGNAL
+# ===============================
+st.subheader("📊 Recommendation")
+
+if difference > 0:
+    st.success("🟢 BUY Signal")
+elif difference < 0:
+    st.error("🔴 SELL Signal")
+else:
+    st.info("🟡 HOLD")
 
 # ===============================
 # 7-DAY FORECAST (UP & DOWN)
@@ -63,7 +86,7 @@ future_predictions = []
 price = latest_price
 
 for i in range(7):
-    change = random.uniform(-0.01, 0.01)  # -1% to +1%
+    change = random.uniform(-0.01, 0.01)
     price = price * (1 + change)
     future_predictions.append(round(price, 2))
 
