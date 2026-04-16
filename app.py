@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-
+np.random.seed(42)
 # ===============================
 # LOAD DATA
 # ===============================
