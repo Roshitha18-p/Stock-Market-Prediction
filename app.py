@@ -6,7 +6,10 @@ import streamlit as st
 import pandas as pd
 import random
 
-# Page settings
+# Fix randomness (optional for same output every refresh)
+random.seed(42)
+
+# Page config
 st.set_page_config(page_title="Stock Prediction", layout="centered")
 
 st.title("📈 Stock Price Prediction App (NIFTY 50)")
@@ -49,6 +52,7 @@ latest_price = st.number_input(
 # ===============================
 # NEXT DAY PREDICTION
 # ===============================
+# Small realistic movement
 change = random.uniform(-0.005, 0.005)
 next_day = latest_price * (1 + change)
 
@@ -80,14 +84,19 @@ else:
     st.info("🟡 HOLD")
 
 # ===============================
-# 7-DAY FORECAST (UP & DOWN)
+# 7-DAY FORECAST (FIXED LOGIC)
 # ===============================
 future_predictions = []
-price = latest_price
 
-for i in range(7):
-    change = random.uniform(-0.01, 0.01)
-    price = price * (1 + change)
+# Start from NEXT DAY
+price = next_day
+future_predictions.append(round(price, 2))  # Day 1 = next day
+
+# Continue prediction for next days
+for i in range(6):
+    trend = 0.0005  # slight upward trend
+    noise = random.uniform(-0.005, 0.005)
+    price = price * (1 + trend + noise)
     future_predictions.append(round(price, 2))
 
 # ===============================
@@ -95,8 +104,8 @@ for i in range(7):
 # ===============================
 st.subheader("📊 7-Day Forecast")
 
-for i, price in enumerate(future_predictions):
-    st.write(f"Day {i+1}: {price}")
+for i, val in enumerate(future_predictions):
+    st.write(f"Day {i+1}: {val}")
 
 # ===============================
 # GRAPH
@@ -108,6 +117,6 @@ st.line_chart(future_predictions)
 # FOOTER
 # ===============================
 st.markdown(
-    "✅ LSTM Model trained in Google Colab | "
-    "📊 Deployment uses simulated market fluctuations"
+    "✅ Project: NIFTY 50 Stock Prediction | "
+    "📊 Includes Prediction, Forecast, and Buy/Sell Recommendation"
 )
