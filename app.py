@@ -1,13 +1,9 @@
 import streamlit as st
 import numpy as np
 import pandas as pd
+
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import load_model
-
-# ===============================
-# PAGE CONFIG
-# ===============================
-st.set_page_config(page_title="Stock Predictor", layout="wide")
 
 # ===============================
 # LOAD DATA & MODEL
@@ -22,18 +18,20 @@ scaler = MinMaxScaler()
 scaled_data = scaler.fit_transform(dataset)
 
 # ===============================
-# HEADER
+# UI
 # ===============================
-st.title("📈 NIFTY 50 Stock Prediction Dashboard")
-st.markdown("AI-powered stock prediction using LSTM model")
+st.title("📊 NIFTY 50 Stock Prediction App")
+
+st.subheader("📋 Dataset Preview")
+st.dataframe(df.tail())
 
 # ===============================
-# SIDEBAR INPUT
+# USER INPUT
 # ===============================
-st.sidebar.header("🔧 Input Settings")
+st.subheader("📥 Enter Latest Closing Price")
 
-latest_price = st.sidebar.number_input(
-    "Enter Latest Close Price",
+latest_price = st.number_input(
+    "Enter latest Close price",
     value=float(dataset[-1])
 )
 
@@ -46,37 +44,37 @@ X_input = last_60_days.reshape((1, 60, 1))
 pred = model.predict(X_input)
 pred_price = scaler.inverse_transform(pred)[0][0]
 
+st.subheader("📅 Next Day Prediction")
+st.success(f"Predicted Price: {round(pred_price,2)}")
+
+# ===============================
+# PROFIT / LOSS
+# ===============================
 change = pred_price - latest_price
 
-# ===============================
-# TOP METRICS
-# ===============================
-col1, col2, col3 = st.columns(3)
-
-col1.metric("📅 Predicted Price", f"{round(pred_price,2)}")
-col2.metric("📊 Change", f"{round(change,2)}")
+st.subheader("📊 Profit / Loss")
 
 if change > 0:
-    col3.metric("📈 Trend", "UP")
+    st.success(f"Profit Expected: +{round(change,2)}")
 else:
-    col3.metric("📉 Trend", "DOWN")
+    st.error(f"Loss Expected: {round(change,2)}")
 
 # ===============================
 # BUY / SELL / HOLD
 # ===============================
 st.subheader("📢 Recommendation")
 
-threshold = 0.003 * latest_price
+threshold = 0.003 * latest_price  # 0.3%
 
 if change > threshold:
-    st.success("🟢 BUY Signal — Price expected to rise significantly")
+    st.success("🟢 BUY Signal")
 elif change < -threshold:
-    st.error("🔴 SELL Signal — Price expected to fall")
+    st.error("🔴 SELL Signal")
 else:
-    st.warning("🟡 HOLD — Market is stable")
+    st.warning("🟡 HOLD Signal")
 
 # ===============================
-# FORECAST
+# 7-DAY FORECAST
 # ===============================
 st.subheader("📆 7-Day Forecast")
 
@@ -94,12 +92,8 @@ future_predictions = scaler.inverse_transform(
     np.array(future_predictions).reshape(-1,1)
 )
 
-forecast_df = pd.DataFrame({
-    "Day": [f"Day {i+1}" for i in range(7)],
-    "Predicted Price": [round(x[0],2) for x in future_predictions]
-})
-
-st.table(forecast_df)
+for i, price in enumerate(future_predictions):
+    st.write(f"Day {i+1}: {round(price[0],2)}")
 
 # ===============================
 # TREND ANALYSIS
@@ -109,14 +103,14 @@ st.subheader("📈 Trend Analysis")
 trend = future_predictions[-1][0] - future_predictions[0][0]
 
 if trend > 0:
-    st.success("Overall Trend: UPWARD 📈")
+    st.success("Overall Trend: 📈 UPWARD")
 else:
-    st.error("Overall Trend: DOWNWARD 📉")
+    st.error("Overall Trend: 📉 DOWNWARD")
 
 # ===============================
-# CONFIDENCE
+# CONFIDENCE (from notebook)
 # ===============================
-direction_accuracy = 52.1
+direction_accuracy = 52.1  # update if retrained
 
 st.subheader("📊 Model Confidence")
 st.info(f"Direction Accuracy: {direction_accuracy}%")
@@ -124,5 +118,4 @@ st.info(f"Direction Accuracy: {direction_accuracy}%")
 # ===============================
 # FOOTER
 # ===============================
-st.markdown("---")
-st.caption("Built using Streamlit | LSTM Model | NIFTY 50 Dataset")
+st.write("✅ Built using Streamlit | NIFTY 50 Prediction Project")
