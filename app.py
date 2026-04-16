@@ -34,7 +34,7 @@ avg_change = changes.mean()
 std_dev = changes.std()
 
 # ===============================
-# NEXT DAY PREDICTION (DYNAMIC)
+# NEXT DAY PREDICTION
 # ===============================
 random_change = np.random.normal(avg_change, std_dev)
 next_day_price = latest_price + random_change
@@ -48,7 +48,7 @@ st.success(f"{round(next_day_price,2)}")
 change = next_day_price - latest_price
 
 # ===============================
-# 7-DAY FORECAST (DYNAMIC)
+# 7-DAY FORECAST
 # ===============================
 st.subheader("📆 7-Day Forecast")
 
@@ -74,18 +74,29 @@ else:
     st.error("Overall Trend: DOWNWARD 📉")
 
 # ===============================
-# BUY / SELL / HOLD
+# BUY / SELL / HOLD (FINAL FIXED)
 # ===============================
 st.subheader("📢 Recommendation")
 
 threshold = 0.003 * latest_price  # 0.3%
 
-if change > threshold and trend > 0:
-    st.success("🟢 STRONG BUY Signal")
-elif change < -threshold and trend < 0:
-    st.error("🔴 STRONG SELL Signal")
+# BUY
+if change > threshold:
+    if trend > 0:
+        st.success("🟢 STRONG BUY (Uptrend confirmed)")
+    else:
+        st.success("🟢 BUY (Short-term rise)")
+
+# SELL
+elif change < -threshold:
+    if trend < 0:
+        st.error("🔴 STRONG SELL (Downtrend confirmed)")
+    else:
+        st.error("🔴 SELL (Short-term drop)")
+
+# HOLD
 else:
-    st.warning("🟡 HOLD Signal")
+    st.warning("🟡 HOLD (No strong movement)")
 
 # ===============================
 # PROFIT / LOSS
@@ -98,11 +109,10 @@ else:
     st.error(f"Expected Loss: {round(change,2)}")
 
 # ===============================
-# CONFIDENCE (BASED ON VOLATILITY)
+# CONFIDENCE
 # ===============================
 volatility = np.std(changes)
 
-# Confidence formula (stable = higher confidence)
 confidence = max(50, 100 - (volatility / latest_price * 1000))
 
 st.subheader("📊 Confidence Level")
@@ -111,4 +121,4 @@ st.info(f"{round(confidence,2)}%")
 # ===============================
 # FOOTER
 # ===============================
-st.write("✅ Trend + Volatility Based Prediction (Lightweight Deployment Version)")
+st.write("✅ Trend + Volatility Based Prediction (Deployment Version)")
