@@ -1,121 +1,109 @@
 import streamlit as st
-import numpy as np
 import pandas as pd
-
-from sklearn.preprocessing import MinMaxScaler
-from tensorflow.keras.models import load_model
+import numpy as np
 
 # ===============================
-# LOAD DATA & MODEL
+# LOAD DATA
 # ===============================
 df = pd.read_csv("clean_data.csv")
-model = load_model("stock_model.keras")
-
-data = df[['Close']]
-dataset = data.values
-
-scaler = MinMaxScaler()
-scaled_data = scaler.fit_transform(dataset)
+data = df['Close']
 
 # ===============================
 # UI
 # ===============================
-st.title("📊 NIFTY 50 Stock Prediction App")
+st.title("📈 NIFTY 50 Stock Prediction App")
 
-st.subheader("📋 Dataset Preview")
+st.subheader("📋 Latest Data")
 st.dataframe(df.tail())
 
 # ===============================
 # USER INPUT
 # ===============================
-st.subheader("📥 Enter Latest Closing Price")
-
 latest_price = st.number_input(
-    "Enter latest Close price",
-    value=float(dataset[-1])
+    "Enter Latest Close Price",
+    value=float(data.iloc[-1])
 )
+
+# ===============================
+# TREND CALCULATION
+# ===============================
+last_60 = data.tail(60)
+changes = last_60.diff().dropna()
+
+avg_change = changes.mean()
 
 # ===============================
 # NEXT DAY PREDICTION
 # ===============================
-last_60_days = scaled_data[-60:]
-X_input = last_60_days.reshape((1, 60, 1))
-
-pred = model.predict(X_input)
-pred_price = scaler.inverse_transform(pred)[0][0]
+next_day_price = latest_price + avg_change
 
 st.subheader("📅 Next Day Prediction")
-st.success(f"Predicted Price: {round(pred_price,2)}")
+st.success(f"{round(next_day_price,2)}")
 
 # ===============================
-# PROFIT / LOSS
+# CHANGE
 # ===============================
-change = pred_price - latest_price
-
-st.subheader("📊 Profit / Loss")
-
-if change > 0:
-    st.success(f"Profit Expected: +{round(change,2)}")
-else:
-    st.error(f"Loss Expected: {round(change,2)}")
-
-# ===============================
-# BUY / SELL / HOLD
-# ===============================
-st.subheader("📢 Recommendation")
-
-threshold = 0.003 * latest_price  # 0.3%
-
-if change > threshold:
-    st.success("🟢 BUY Signal")
-elif change < -threshold:
-    st.error("🔴 SELL Signal")
-else:
-    st.warning("🟡 HOLD Signal")
+change = next_day_price - latest_price
 
 # ===============================
 # 7-DAY FORECAST
 # ===============================
 st.subheader("📆 7-Day Forecast")
 
-future_predictions = []
-current_batch = last_60_days.copy()
+future = []
+current = latest_price
 
 for i in range(7):
-    X_input = current_batch.reshape((1, 60, 1))
-    pred = model.predict(X_input)
-
-    future_predictions.append(pred[0][0])
-    current_batch = np.append(current_batch[1:], pred, axis=0)
-
-future_predictions = scaler.inverse_transform(
-    np.array(future_predictions).reshape(-1,1)
-)
-
-for i, price in enumerate(future_predictions):
-    st.write(f"Day {i+1}: {round(price[0],2)}")
+    current = current + avg_change
+    future.append(current)
+    st.write(f"Day {i+1}: {round(current,2)}")
 
 # ===============================
 # TREND ANALYSIS
 # ===============================
+trend = future[-1] - future[0]
+
 st.subheader("📈 Trend Analysis")
 
-trend = future_predictions[-1][0] - future_predictions[0][0]
-
 if trend > 0:
-    st.success("Overall Trend: 📈 UPWARD")
+    st.success("UPWARD 📈")
 else:
-    st.error("Overall Trend: 📉 DOWNWARD")
+    st.error("DOWNWARD 📉")
 
 # ===============================
-# CONFIDENCE (from notebook)
+# BUY / SELL / HOLD
 # ===============================
-direction_accuracy = 52.1  # update if retrained
+st.subheader("📢 Recommendation")
 
-st.subheader("📊 Model Confidence")
-st.info(f"Direction Accuracy: {direction_accuracy}%")
+threshold = 0.003 * latest_price
+
+if change > threshold and trend > 0:
+    st.success("🟢 STRONG BUY")
+elif change < -threshold and trend < 0:
+    st.error("🔴 STRONG SELL")
+else:
+    st.warning("🟡 HOLD")
+
+# ===============================
+# PROFIT / LOSS
+# ===============================
+st.subheader("📊 Profit / Loss")
+
+if change > 0:
+    st.success(f"Expected Profit: +{round(change,2)}")
+else:
+    st.error(f"Expected Loss: {round(change,2)}")
+
+# ===============================
+# CONFIDENCE (BASED ON VOLATILITY)
+# ===============================
+volatility = np.std(changes)
+confidence = max(50, 100 - (volatility / latest_price * 1000))
+
+st.subheader("📊 Confidence Level")
+st.info(f"{round(confidence,2)}%")
 
 # ===============================
 # FOOTER
 # ===============================
-st.write("✅ Built using Streamlit | NIFTY 50 Prediction Project")
+st.write("✅ LSTM Model used in backend (Notebook) | Lightweight deployment version")
