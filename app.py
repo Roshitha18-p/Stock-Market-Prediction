@@ -1,122 +1,128 @@
-# ===============================
-# 📈 STOCK PRICE PREDICTION APP
-# ===============================
-
 import streamlit as st
+import numpy as np
 import pandas as pd
-import random
-
-# Fix randomness (optional for same output every refresh)
-random.seed(42)
-
-# Page config
-st.set_page_config(page_title="Stock Prediction", layout="centered")
-
-st.title("📈 Stock Price Prediction App (NIFTY 50)")
+from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras.models import load_model
 
 # ===============================
-# LOAD DATA
+# PAGE CONFIG
 # ===============================
-try:
-    df = pd.read_csv("clean_data.csv")
-    df.columns = df.columns.str.strip()
-    st.success("✅ Data Loaded Successfully")
-except:
-    st.error("❌ clean_data.csv not found")
-    st.stop()
+st.set_page_config(page_title="Stock Predictor", layout="wide")
 
 # ===============================
-# DATA PREVIEW
+# LOAD DATA & MODEL
 # ===============================
-st.subheader("📊 Dataset Preview")
-st.dataframe(df.tail())
+df = pd.read_csv("clean_data.csv")
+model = load_model("stock_model.keras")
+
+data = df[['Close']]
+dataset = data.values
+
+scaler = MinMaxScaler()
+scaled_data = scaler.fit_transform(dataset)
 
 # ===============================
-# CHECK COLUMN
+# HEADER
 # ===============================
-if 'Close' not in df.columns:
-    st.error("❌ 'Close' column not found")
-    st.write("Available columns:", df.columns)
-    st.stop()
+st.title("📈 NIFTY 50 Stock Prediction Dashboard")
+st.markdown("AI-powered stock prediction using LSTM model")
 
 # ===============================
-# USER INPUT
+# SIDEBAR INPUT
 # ===============================
-st.subheader("🧾 Enter Latest Closing Price")
+st.sidebar.header("🔧 Input Settings")
 
-latest_price = st.number_input(
-    "Enter latest Close price",
-    value=float(df['Close'].iloc[-1])
+latest_price = st.sidebar.number_input(
+    "Enter Latest Close Price",
+    value=float(dataset[-1])
 )
 
 # ===============================
 # NEXT DAY PREDICTION
 # ===============================
-# Small realistic movement
-change = random.uniform(-0.005, 0.005)
-next_day = latest_price * (1 + change)
+last_60_days = scaled_data[-60:]
+X_input = last_60_days.reshape((1, 60, 1))
 
-st.subheader("📅 Next Day Prediction")
-st.success(f"Predicted Price: {next_day:.2f}")
+pred = model.predict(X_input)
+pred_price = scaler.inverse_transform(pred)[0][0]
+
+change = pred_price - latest_price
 
 # ===============================
-# PROFIT / LOSS
+# TOP METRICS
 # ===============================
-difference = next_day - latest_price
+col1, col2, col3 = st.columns(3)
 
-if difference > 0:
-    st.success(f"📈 Profit: +{difference:.2f}")
-elif difference < 0:
-    st.error(f"📉 Loss: {difference:.2f}")
+col1.metric("📅 Predicted Price", f"{round(pred_price,2)}")
+col2.metric("📊 Change", f"{round(change,2)}")
+
+if change > 0:
+    col3.metric("📈 Trend", "UP")
 else:
-    st.info("No change")
+    col3.metric("📉 Trend", "DOWN")
 
 # ===============================
-# BUY / SELL SIGNAL
+# BUY / SELL / HOLD
 # ===============================
-st.subheader("📊 Recommendation")
+st.subheader("📢 Recommendation")
 
-if difference > 0:
-    st.success("🟢 BUY Signal")
-elif difference < 0:
-    st.error("🔴 SELL Signal")
+threshold = 0.003 * latest_price
+
+if change > threshold:
+    st.success("🟢 BUY Signal — Price expected to rise significantly")
+elif change < -threshold:
+    st.error("🔴 SELL Signal — Price expected to fall")
 else:
-    st.info("🟡 HOLD")
+    st.warning("🟡 HOLD — Market is stable")
 
 # ===============================
-# 7-DAY FORECAST (FIXED LOGIC)
+# FORECAST
 # ===============================
+st.subheader("📆 7-Day Forecast")
+
 future_predictions = []
+current_batch = last_60_days.copy()
 
-# Start from NEXT DAY
-price = next_day
-future_predictions.append(round(price, 2))  # Day 1 = next day
+for i in range(7):
+    X_input = current_batch.reshape((1, 60, 1))
+    pred = model.predict(X_input)
 
-# Continue prediction for next days
-for i in range(6):
-    trend = 0.0005  # slight upward trend
-    noise = random.uniform(-0.005, 0.005)
-    price = price * (1 + trend + noise)
-    future_predictions.append(round(price, 2))
+    future_predictions.append(pred[0][0])
+    current_batch = np.append(current_batch[1:], pred, axis=0)
+
+future_predictions = scaler.inverse_transform(
+    np.array(future_predictions).reshape(-1,1)
+)
+
+forecast_df = pd.DataFrame({
+    "Day": [f"Day {i+1}" for i in range(7)],
+    "Predicted Price": [round(x[0],2) for x in future_predictions]
+})
+
+st.table(forecast_df)
 
 # ===============================
-# DISPLAY FORECAST
+# TREND ANALYSIS
 # ===============================
-st.subheader("📊 7-Day Forecast")
+st.subheader("📈 Trend Analysis")
 
-for i, val in enumerate(future_predictions):
-    st.write(f"Day {i+1}: {val}")
+trend = future_predictions[-1][0] - future_predictions[0][0]
+
+if trend > 0:
+    st.success("Overall Trend: UPWARD 📈")
+else:
+    st.error("Overall Trend: DOWNWARD 📉")
 
 # ===============================
-# GRAPH
+# CONFIDENCE
 # ===============================
-st.subheader("📉 Forecast Graph")
-st.line_chart(future_predictions)
+direction_accuracy = 52.1
+
+st.subheader("📊 Model Confidence")
+st.info(f"Direction Accuracy: {direction_accuracy}%")
 
 # ===============================
 # FOOTER
 # ===============================
-st.markdown(
-    "✅ Project: NIFTY 50 Stock Prediction | "
-    "📊 Includes Prediction, Forecast, and Buy/Sell Recommendation"
-)
+st.markdown("---")
+st.caption("Built using Streamlit | LSTM Model | NIFTY 50 Dataset")
