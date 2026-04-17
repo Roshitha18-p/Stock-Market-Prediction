@@ -1,179 +1,155 @@
+# ===============================
+# 📊 STOCK MARKET PREDICTION APP
+# ===============================
+
 import streamlit as st
-import pandas as pd
 import numpy as np
-
-# ===============================
-# LOAD DATA
-# ===============================
-df = pd.read_csv("clean_data.csv")
-data = df['Close']
-
-# ===============================
-# UI
-# ===============================
-st.title("📈 NIFTY 50 Stock Prediction")
-
-st.subheader("📋 Latest Data")
-st.dataframe(df.tail())
-
-# ===============================
-# USER INPUT
-# ===============================
-latest_price = st.number_input(
-    "Enter Latest Close Price",
-    value=float(data.iloc[-1])
-)
-
-# ===============================
-# LOGICAL TREND CALCULATION
-# ===============================
-last_30 = data.tail(30)
-changes = last_30.diff().dropna()
-
-# Use weighted trend (recent days more important)
-weights = np.arange(1, len(changes)+1)
-weighted_avg = np.sum(changes * weights) / np.sum(weights)
-
-# ===============================
-# NEXT DAY PREDICTION
-# ===============================
-import streamlit as st
 import pandas as pd
-import numpy as np
+from tensorflow.keras.models import load_model
+from sklearn.preprocessing import MinMaxScaler
 
 # ===============================
-# LOAD DATA
+# 1. PAGE CONFIG
 # ===============================
-df = pd.read_csv("clean_data.csv")
-data = df['Close']
+st.set_page_config(page_title="Stock Prediction AI", layout="centered")
+
+st.title("📈 Stock Market Prediction AI")
+st.write("Next day prediction + Buy/Sell/Hold signal + Forecast")
 
 # ===============================
-# UI
+# 2. LOAD DATA & MODEL
 # ===============================
-st.title("📈 NIFTY 50 Stock Prediction")
+@st.cache_resource
+def load_assets():
+    df = pd.read_csv("clean_data.csv")
+    model = load_model("stock_model.keras")
+    return df, model
 
-st.subheader("📋 Latest Data")
-st.dataframe(df.tail())
+df, model = load_assets()
+
+st.success("Model & Data Loaded Successfully")
 
 # ===============================
-# USER INPUT
+# 3. PREPROCESS DATA
 # ===============================
-latest_price = st.number_input(
-    "Enter Latest Close Price",
-    value=float(data.iloc[-1])
+data = df[['Close']]
+dataset = data.values
+
+scaler = MinMaxScaler(feature_range=(0, 1))
+scaled_data = scaler.fit_transform(dataset)
+
+training_data_len = int(len(scaled_data) * 0.8)
+
+test_data = scaled_data[training_data_len - 60:]
+
+X_test = []
+y_test = dataset[training_data_len:]
+
+for i in range(60, len(test_data)):
+    X_test.append(test_data[i-60:i, 0])
+
+X_test = np.array(X_test)
+X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
+
+# ===============================
+# 4. PREDICTIONS
+# ===============================
+predictions = model.predict(X_test)
+predictions = scaler.inverse_transform(predictions)
+
+y_test = y_test.reshape(-1, 1)
+
+# ===============================
+# 5. METRICS
+# ===============================
+rmse = np.sqrt(np.mean((predictions - y_test) ** 2))
+mae = np.mean(np.abs(predictions - y_test))
+
+accuracy = 100 - (np.mean(np.abs((y_test - predictions) / y_test)) * 100)
+
+direction_correct = np.sum(
+    np.sign(y_test[1:] - y_test[:-1]) ==
+    np.sign(predictions[1:] - predictions[:-1])
 )
+direction_accuracy = (direction_correct / len(y_test)) * 100
 
 # ===============================
-# LOGICAL TREND CALCULATION
+# 6. NEXT DAY PREDICTION
 # ===============================
-last_30 = data.tail(30)
-changes = last_30.diff().dropna()
+last_60_days = scaled_data[-60:]
+X_input = last_60_days.reshape(1, 60, 1)
 
-# Use weighted trend (recent days more important)
-weights = np.arange(1, len(changes)+1)
-weighted_avg = np.sum(changes * weights) / np.sum(weights)
+next_day_scaled = model.predict(X_input)
+next_day_price = scaler.inverse_transform(next_day_scaled)[0][0]
 
-# ===============================
-# NEXT DAY PREDICTION
-# ===============================
-next_day_price = latest_price + weighted_avg
-
-st.subheader("📅 Next Day Prediction")
-st.success(f"{round(next_day_price,2)}")
-
-# ===============================
-# PROFIT / LOSS
-# ===============================
+latest_price = dataset[-1][0]
 change = next_day_price - latest_price
 
-st.subheader("📊 Profit / Loss")
-
-if change > 0:
-    st.success(f"Profit Expected: +{round(change,2)}")
-else:
-    st.error(f"Loss Expected: {round(change,2)}")
-
 # ===============================
-# BUY / SELL (LOGICAL)
+# 7. BUY / SELL / HOLD
 # ===============================
-st.subheader("📢 Recommendation")
-
-threshold = 0.002 * latest_price  # small buffer
+threshold = 0.003 * latest_price
 
 if change > threshold:
-    st.success("🟢 BUY (Upward Momentum)")
+    signal = "🟢 BUY"
+elif change < -threshold:
+    signal = "🔴 SELL"
 else:
-    st.error("🔴 SELL (Downward Momentum)")
+    signal = "🟡 HOLD"
 
 # ===============================
-# ACCURACY (DIRECTION BASED)
+# 8. UI OUTPUT
 # ===============================
-all_changes = data.diff().dropna()
+st.subheader("📊 Model Performance")
 
-# Check how often trend direction matches
-correct = 0
-
-for i in range(1, len(all_changes)):
-    if (all_changes.iloc[i] > 0 and weighted_avg > 0) or \
-       (all_changes.iloc[i] < 0 and weighted_avg < 0):
-        correct += 1
-
-accuracy = (correct / len(all_changes)) * 100
-
-st.subheader("📊 Accuracy")
-st.info(f"{round(accuracy,2)}%")
-
-# ===============================
-# FOOTER
-# ===============================
-st.write("✅ Weighted Trend-Based Prediction Model")
+st.write("RMSE:", round(rmse, 2))
+st.write("MAE:", round(mae, 2))
+st.write("Accuracy:", round(accuracy, 2), "%")
+st.write("Direction Accuracy:", round(direction_accuracy, 2), "%")
 
 st.subheader("📅 Next Day Prediction")
-st.success(f"{round(next_day_price,2)}")
+st.write("Predicted Price:", round(next_day_price, 2))
+st.write("Change:", round(change, 2))
 
-# ===============================
-# PROFIT / LOSS
-# ===============================
-change = next_day_price - latest_price
-
-st.subheader("📊 Profit / Loss")
-
-if change > 0:
-    st.success(f"Profit Expected: +{round(change,2)}")
-else:
-    st.error(f"Loss Expected: {round(change,2)}")
-
-# ===============================
-# BUY / SELL (LOGICAL)
-# ===============================
 st.subheader("📢 Recommendation")
+st.success(signal)
 
-threshold = 0.002 * latest_price  # small buffer
+# ===============================
+# 9. 7 DAY FORECAST
+# ===============================
+future_predictions = []
+current_batch = last_60_days.copy()
 
-if change > threshold:
-    st.success("🟢 BUY (Upward Momentum)")
+for i in range(7):
+    X_input = current_batch.reshape(1, 60, 1)
+    pred = model.predict(X_input)
+
+    future_predictions.append(pred[0][0])
+    current_batch = np.append(current_batch[1:], pred, axis=0)
+
+future_predictions = scaler.inverse_transform(
+    np.array(future_predictions).reshape(-1, 1)
+)
+
+st.subheader("📆 7-Day Forecast")
+
+for i, price in enumerate(future_predictions):
+    st.write(f"Day {i+1}: {round(price[0], 2)}")
+
+# ===============================
+# 10. TREND
+# ===============================
+trend = future_predictions[-1][0] - future_predictions[0][0]
+
+st.subheader("📈 Trend Analysis")
+
+if trend > 0:
+    st.success("Overall Trend: UPWARD 📈")
 else:
-    st.error("🔴 SELL (Downward Momentum)")
+    st.error("Overall Trend: DOWNWARD 📉")
 
 # ===============================
-# ACCURACY (DIRECTION BASED)
+# 11. CONFIDENCE
 # ===============================
-all_changes = data.diff().dropna()
-
-# Check how often trend direction matches
-correct = 0
-
-for i in range(1, len(all_changes)):
-    if (all_changes.iloc[i] > 0 and weighted_avg > 0) or \
-       (all_changes.iloc[i] < 0 and weighted_avg < 0):
-        correct += 1
-
-accuracy = (correct / len(all_changes)) * 100
-
-st.subheader("📊 Accuracy")
-st.info(f"{round(accuracy,2)}%")
-
-# ===============================
-# FOOTER
-# ===============================
-st.write("✅ Weighted Trend-Based Prediction Model")
+st.subheader("📊 Confidence Level")
+st.write(round(direction_accuracy, 2), "%")
